@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Link, useNavigate } from 'react-router-dom';
 import './Signup.css';
+const API_URL = import.meta.env.VITE_API_URL;
 
 const Signup = ({ onSignupSuccess }) => {
     const navigate = useNavigate();
@@ -20,7 +21,7 @@ const Signup = ({ onSignupSuccess }) => {
 useEffect(() => {
   const checkIfLoggedIn = async () => {
     try {
-      const response = await axios.get('https://react-bot-g19j.onrender.com/api/auth/check', {
+      const response = await axios.get(`${API_URL}/api/auth/check`, {
         withCredentials: true
       });
       if (response.data.isAuthenticated) {
@@ -63,7 +64,7 @@ useEffect(() => {
 
         try {
             const response = await axios.post(
-                'https://react-bot-g19j.onrender.com/api/signup',
+                `${API_URL}/api/signup`,
                 formData,
                 { withCredentials: true }
             );
