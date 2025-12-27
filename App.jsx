@@ -7,8 +7,8 @@ import Signup from './components/Signup';
 import Login from './components/Login';
 import Chat from './components/Chat';
 import './App.css';
-
 const API_URL = import.meta.env.VITE_API_URL;
+
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
