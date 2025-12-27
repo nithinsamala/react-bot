@@ -155,7 +155,7 @@ export default function ChatPage() {
     formData.append("file", file); // ⚠️ MUST be "file"
 
     const res = await axios.post(
-      "http://localhost:5000/api/uploads/upload",
+      "https://react-bot-g19j.onrender.com/api/uploads/upload",
       formData,
       { withCredentials: true } // ⚠️ REQUIRED FOR COOKIE AUTH
     );
