@@ -2,7 +2,6 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './Chat.css';
 import axios from "axios";
-
 const API_URL = import.meta.env.VITE_API_URL;
 
 
@@ -92,36 +91,35 @@ export default function ChatPage() {
   };
   
   // Generate AI response
-  const generateAIResponse = (userInput) => {
-    let responseText = '';
-    
-    // Simple response logic based on user input
-    const input = userInput.toLowerCase();
-    
-    if (input.includes('hello') || input.includes('hi') || input.includes('hey')) {
-      responseText = "Hello! How can I assist you today? I'm ready to help with any questions or tasks you have.";
-    } else if (input.includes('help') || input.includes('support')) {
-      responseText = "I'm here to help! Please let me know what specific assistance you need. I can help with writing, analysis, coding, planning, and much more.";
-    } else if (input.includes('code') || input.includes('programming')) {
-      responseText = "I can help with coding! I can explain concepts, debug code, suggest improvements, or write code snippets in various programming languages.";
-    } else if (input.includes('thank')) {
-      responseText = "You're welcome! If you have any more questions or need further assistance, feel free to ask. I'm here to help!";
-    } else if (input.includes('bye') || input.includes('goodbye')) {
-      responseText = "Goodbye! Feel free to come back anytime if you need more help. Have a great day!";
-    } else {
-      responseText = `I understand you're asking about "${userInput}". Based on my analysis, I can provide you with comprehensive information and assistance on this topic. Would you like me to elaborate on any specific aspect?`;
-    }
-    
+const generateAIResponse = async (userInput) => {
+  try {
+    const res = await axios.post(
+      `${API_URL}/api/chat`,
+      { message: userInput },
+      { withCredentials: true }
+    );
+
     const aiMessage = {
       id: (Date.now() + 1).toString(),
-      text: responseText,
+      text: res.data.reply,
       sender: 'assistant',
       timestamp: getCurrentTime(),
     };
-    
+
     setMessages(prev => [...prev, aiMessage]);
     setIsTyping(false);
-  };
+
+  } catch (err) {
+    setMessages(prev => [...prev, {
+      id: Date.now().toString(),
+      text: "❌ AI failed to respond",
+      sender: "assistant",
+      timestamp: getCurrentTime()
+    }]);
+    setIsTyping(false);
+  }
+};
+
   
   // Handle quick prompt click
   const handleQuickPrompt = (prompt) => {
@@ -157,7 +155,8 @@ export default function ChatPage() {
     formData.append("file", file); // ⚠️ MUST be "file"
 
     const res = await axios.post(
-       `${API_URL}/api/uploads/upload`,
+      `${API_URL}/api/uploads/upload`,
+
       formData,
       { withCredentials: true } // ⚠️ REQUIRED FOR COOKIE AUTH
     );
