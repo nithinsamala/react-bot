@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { Link, useNavigate } from 'react-router-dom';
 import './Login.css';
-
+const API_URL = import.meta.env.VITE_API_URL;
 const Login = ({ onLoginSuccess }) => {
     const navigate = useNavigate();
     const [formData, setFormData] = useState({
@@ -30,7 +30,7 @@ const Login = ({ onLoginSuccess }) => {
 
         try {
             // API call to login endpoint
-            const response = await axios.post('https://react-bot-g19j.onrender.com/api/login', formData, {
+            const response = await axios.post(`${API_URL}/api/login`, formData, {
                 withCredentials: true
             });
             
