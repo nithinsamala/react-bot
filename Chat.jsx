@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import './Chat.css';
 import axios from "axios";
 
+const API_URL = import.meta.env.VITE_API_URL;
+
 
 export default function ChatPage() {
   const navigate = useNavigate();
@@ -155,7 +157,7 @@ export default function ChatPage() {
     formData.append("file", file); // ⚠️ MUST be "file"
 
     const res = await axios.post(
-      "https://react-bot-g19j.onrender.com/api/uploads/upload",
+       `${API_URL}/api/uploads/upload`,
       formData,
       { withCredentials: true } // ⚠️ REQUIRED FOR COOKIE AUTH
     );
