@@ -15,19 +15,38 @@ const uploadRouter = require("./upload");
 dotenv.config();
 
 const app = express();
-const PORT = 5000;
+const PORT = process.env.PORT || 5000;
 
 /* =========================
-   MIDDLEWARE
+   TRUST PROXY (REQUIRED ON RENDER)
 ========================= */
+app.set("trust proxy", 1);
+
+/* =========================
+   CORS SETUP (LOCAL NOW, VERCEL LATER)
+========================= */
+const allowedOrigins = [
+  "http://localhost:5173" // local frontend
+  // add Vercel URL later
+];
+
 app.use(cors({
-  origin: "http://localhost:5173",
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("CORS not allowed"));
+    }
+  },
   credentials: true
 }));
+
 app.use(express.json());
 app.use(cookieParser());
 
-// ✅ CONSISTENT UPLOAD PATH
+/* =========================
+   UPLOAD DIRECTORY
+========================= */
 const UPLOAD_DIR = path.join(__dirname, "uploads");
 if (!fs.existsSync(UPLOAD_DIR)) {
   fs.mkdirSync(UPLOAD_DIR);
@@ -56,11 +75,13 @@ const User = mongoose.model("User", userSchema);
 const generateToken = (id) =>
   jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: "7d" });
 
+const isProd = process.env.NODE_ENV === "production";
+
 const sendToken = (res, token) => {
   res.cookie("token", token, {
     httpOnly: true,
-    sameSite: "lax",
-    secure: false,
+    secure: isProd,                 // true on Render
+    sameSite: isProd ? "none" : "lax",
     maxAge: 7 * 24 * 60 * 60 * 1000
   });
 };
@@ -134,7 +155,11 @@ app.get("/api/auth/check", checkToken, async (req, res) => {
    LOGOUT
 ========================= */
 app.post("/api/logout", (req, res) => {
-  res.clearCookie("token");
+  res.clearCookie("token", {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? "none" : "lax"
+  });
   res.json({ success: true });
 });
 
@@ -148,7 +173,6 @@ app.post("/api/chat", checkToken, async (req, res) => {
       return res.status(400).json({ reply: "Message required" });
     }
 
-    // ✅ SAFE MODEL ACCESS
     const UploadedFile =
       mongoose.models.UploadedFile ||
       mongoose.model("UploadedFile");
@@ -173,7 +197,6 @@ app.post("/api/chat", checkToken, async (req, res) => {
       return res.json({ reply: "❌ No readable text found in PDF." });
     }
 
-    // 🔹 limit context to avoid token overflow
     const context = pdfData.text.slice(0, 6000);
 
     const groqRes = await axios.post(
@@ -181,50 +204,28 @@ app.post("/api/chat", checkToken, async (req, res) => {
       {
         model: "openai/gpt-oss-20b",
         messages: [
-      {
-  role: "system",
-  content: `
+          {
+            role: "system",
+            content: `
 You are a strict document-based assistant.
 
-MANDATORY RULES:
-1. Answer ONLY using the information provided in the document content.
-2. Do NOT use outside knowledge, assumptions, or guesses.
-3. If the answer is NOT explicitly present in the document, respond EXACTLY with:
-   "Answer not found in the provided document."
-4. Do NOT mention the document or PDF in the response.
+RULES:
+- Answer ONLY from document content
+- If not found, say:
+"Answer not found in the provided document."
 
-OUTPUT FORMAT (STRICT):
-- Use Markdown formatting.
-- Use **bold headings**.
-- Use bullet points under each heading.
-- Do NOT write paragraphs.
-- Do NOT add extra headings unless the document supports them.
-- If the document mentions items like skills, tools, roles, steps, or features, group them under clear bold headings.
-
-Example format:
-**Skills**
-- Skill 1
-- Skill 2
-
-**Responsibilities**
-- Responsibility 1
-- Responsibility 2
+FORMAT:
+- Use **bold headings**
+- Bullet points only
 `
-},
-
+          },
           {
             role: "user",
-            content: `
-Document Content:
-${context}
-
-User Question:
-${message}
-`
+            content: `Document Content:\n${context}\n\nQuestion:\n${message}`
           }
         ],
-        max_tokens: 512,
-        temperature: 0
+        temperature: 0,
+        max_tokens: 512
       },
       {
         headers: {
@@ -234,11 +235,9 @@ ${message}
       }
     );
 
-    const reply =
-      groqRes.data?.choices?.[0]?.message?.content ||
-      "Answer not found in the provided document.";
-
-    res.json({ reply });
+    res.json({
+      reply: groqRes.data.choices[0].message.content
+    });
 
   } catch (err) {
     console.error("🔥 AI ERROR:", err.response?.data || err.message);
@@ -248,15 +247,21 @@ ${message}
   }
 });
 
-
 /* =========================
    UPLOAD ROUTES
 ========================= */
 app.use("/api/uploads", uploadRouter);
 
 /* =========================
+   ROOT TEST (OPTIONAL)
+========================= */
+app.get("/", (req, res) => {
+  res.send("🚀 Backend running successfully");
+});
+
+/* =========================
    START SERVER
 ========================= */
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
+  console.log(`🚀 Server running on port ${PORT}`);
 });
