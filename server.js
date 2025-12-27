@@ -18,24 +18,20 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 /* =========================
-   TRUST PROXY (REQUIRED ON RENDER)
-========================= */
-app.set("trust proxy", 1);
-
-/* =========================
-   CORS SETUP (LOCAL NOW, VERCEL LATER)
+   CORS (LOCAL + VERCEL)
 ========================= */
 const allowedOrigins = [
-  "http://localhost:5173" // local frontend
-  // add Vercel URL later
+  "http://localhost:5173",
+  "https://YOUR_FRONTEND.vercel.app" // 🔴 REPLACE WITH YOUR VERCEL URL
 ];
 
 app.use(cors({
   origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
-      callback(new Error("CORS not allowed"));
+      callback(new Error("Not allowed by CORS"));
     }
   },
   credentials: true
@@ -75,13 +71,11 @@ const User = mongoose.model("User", userSchema);
 const generateToken = (id) =>
   jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: "7d" });
 
-const isProd = process.env.NODE_ENV === "production";
-
 const sendToken = (res, token) => {
   res.cookie("token", token, {
     httpOnly: true,
-    secure: isProd,                 // true on Render
-    sameSite: isProd ? "none" : "lax",
+    sameSite: "none", // 🔥 REQUIRED
+    secure: true,     // 🔥 REQUIRED (HTTPS)
     maxAge: 7 * 24 * 60 * 60 * 1000
   });
 };
@@ -107,7 +101,6 @@ const checkToken = (req, res, next) => {
 ========================= */
 app.post("/api/signup", async (req, res) => {
   const { email, password } = req.body;
-
   if (!email || !password)
     return res.status(400).json({ message: "All fields required" });
 
@@ -157,8 +150,8 @@ app.get("/api/auth/check", checkToken, async (req, res) => {
 app.post("/api/logout", (req, res) => {
   res.clearCookie("token", {
     httpOnly: true,
-    secure: isProd,
-    sameSite: isProd ? "none" : "lax"
+    sameSite: "none",
+    secure: true
   });
   res.json({ success: true });
 });
@@ -169,33 +162,24 @@ app.post("/api/logout", (req, res) => {
 app.post("/api/chat", checkToken, async (req, res) => {
   try {
     const { message } = req.body;
-    if (!message) {
-      return res.status(400).json({ reply: "Message required" });
-    }
+    if (!message) return res.status(400).json({ reply: "Message required" });
 
     const UploadedFile =
-      mongoose.models.UploadedFile ||
-      mongoose.model("UploadedFile");
+      mongoose.models.UploadedFile || mongoose.model("UploadedFile");
 
     const file = await UploadedFile
       .findOne({ uploadedBy: req.userId })
       .sort({ uploadedAt: -1 });
 
-    if (!file) {
-      return res.json({ reply: "❌ Please upload a PDF first." });
-    }
+    if (!file) return res.json({ reply: "❌ Please upload a PDF first." });
 
     const filePath = path.join(UPLOAD_DIR, file.filename);
-    if (!fs.existsSync(filePath)) {
+    if (!fs.existsSync(filePath))
       return res.json({ reply: "❌ Uploaded file missing on server." });
-    }
 
-    const pdfBuffer = fs.readFileSync(filePath);
-    const pdfData = await pdfParse(pdfBuffer);
-
-    if (!pdfData.text || !pdfData.text.trim()) {
+    const pdfData = await pdfParse(fs.readFileSync(filePath));
+    if (!pdfData.text?.trim())
       return res.json({ reply: "❌ No readable text found in PDF." });
-    }
 
     const context = pdfData.text.slice(0, 6000);
 
@@ -208,24 +192,19 @@ app.post("/api/chat", checkToken, async (req, res) => {
             role: "system",
             content: `
 You are a strict document-based assistant.
-
-RULES:
-- Answer ONLY from document content
-- If not found, say:
+Answer ONLY from the document.
+If not found, reply exactly:
 "Answer not found in the provided document."
-
-FORMAT:
-- Use **bold headings**
-- Bullet points only
+Use Markdown, bold headings, bullet points only.
 `
           },
           {
             role: "user",
-            content: `Document Content:\n${context}\n\nQuestion:\n${message}`
+            content: `Document:\n${context}\n\nQuestion:\n${message}`
           }
         ],
-        temperature: 0,
-        max_tokens: 512
+        max_tokens: 512,
+        temperature: 0
       },
       {
         headers: {
@@ -236,14 +215,14 @@ FORMAT:
     );
 
     res.json({
-      reply: groqRes.data.choices[0].message.content
+      reply:
+        groqRes.data?.choices?.[0]?.message?.content ||
+        "Answer not found in the provided document."
     });
 
   } catch (err) {
     console.error("🔥 AI ERROR:", err.response?.data || err.message);
-    res.status(500).json({
-      reply: "❌ AI failed to answer from the document"
-    });
+    res.status(500).json({ reply: "❌ AI failed" });
   }
 });
 
@@ -251,13 +230,6 @@ FORMAT:
    UPLOAD ROUTES
 ========================= */
 app.use("/api/uploads", uploadRouter);
-
-/* =========================
-   ROOT TEST (OPTIONAL)
-========================= */
-app.get("/", (req, res) => {
-  res.send("🚀 Backend running successfully");
-});
 
 /* =========================
    START SERVER
