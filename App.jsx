@@ -8,6 +8,7 @@ import Login from './components/Login';
 import Chat from './components/Chat';
 import './App.css';
 
+const API_URL = import.meta.env.VITE_API_URL;
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -19,7 +20,7 @@ function App() {
 
   const checkAuth = async () => {
     try {
-      const response = await axios.get('https://react-bot-g19j.onrender.com/api/auth/check', {
+      const response = await axios.get(`${API_URL}/api/auth/check`, {
         withCredentials: true
       });
       setIsAuthenticated(response.data.isAuthenticated);
